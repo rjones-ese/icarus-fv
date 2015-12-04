@@ -1,37 +1,56 @@
 # include  <iverilog/ivl_target.h>
 # include <stdio.h>
 # include <stdlib.h>
+# include <string.h>
 
-#define DEBUG0(...) printf("\e[1;34m AIG TARGET DEBUG:\e[0m \t" __VA_ARGS__)
+// Logging
+#define DEBUG0(...)  printf("\e[1;32m AIG TARGET DEBUG:  \e[0m \t" __VA_ARGS__)
 #define WARNING(...) printf("\e[0;33m AIG TARGET WARNING:\e[0m \t" __VA_ARGS__)
+#define INFO(...)    printf("\e[1;34m AIG TARGET INFO:   \e[0m \t" __VA_ARGS__)
 
 
+// Method Declarations
 int process_scope(ivl_scope_t * scope);
 static int show_process(ivl_process_t net, void * x);
 int show_constants(ivl_design_t des);
 static int process_statements(ivl_statement_t net, int level);
 
+// Global declarations
+char file_path [40];
+
+/******************************************************
+ *      Method targetted by Icarus Verilog            *
+ *****************************************************/
+
 int target_design(ivl_design_t des)
 {
-  ivl_scope_t  ** scopes;
-  scopes = malloc(sizeof(ivl_scope_t *));
-  ivl_scope_t scope;
+  //Open File For Writing
+  strcpy(file_path, ivl_design_flag(des, "-o"));
+  INFO("File \"%s\" targetted for output \n",file_path);
+
+
+  //Obtain Scopes from Design
   int num_scopes;
-  const char * bleh;
-  DEBUG0("Design targeted for AIG\n");
-
+  ivl_scope_t  ** scopes, ** _scopes;
+  scopes = malloc(sizeof(ivl_scope_t *));
+  _scopes = scopes;
   ivl_design_roots(des,scopes,&num_scopes);
+  int idx = 0;
   DEBUG0("Processing %d scopes\n",num_scopes);
-
-  int i = 0;
-  while (i < num_scopes){
+  while (idx < num_scopes){
     process_scope(*scopes++);
-    i++;
+    idx++;
   }
 
+  // Parse Design Processes
   ivl_design_process(des,show_process,0);
 
-  show_constants(des);
+  //show_constants(des);
+
+  //Close File
+
+  //Free Scope
+  free(_scopes);
 
   return 0;
 }
@@ -83,10 +102,11 @@ static int show_process(ivl_process_t net, void * x){
 static int process_statements(ivl_statement_t net,int level){
   switch(ivl_statement_type(net)) {
     case IVL_ST_ASSIGN:
-      if ( level != 0 ) // Probably an initial condition
-        DEBUG0("Assign Statement\n");
-      else
-        DEBUG0("Assign Initial Condition statement\tLine: %d\tFile: %s\n",ivl_stmt_lineno(net),ivl_stmt_file(net));
+      if ( level != 0 ){
+        WARNING("Blocking statements not supported\tLine: %d\tFile: %s\n",ivl_stmt_lineno(net),ivl_stmt_file(net));
+        INFO("*** Treating blocking assignment as non-blocking assignment ***\n");
+      }else
+        WARNING("Assign Initial Condition statement not supported\tLine: %d\tFile: %s\n",ivl_stmt_lineno(net),ivl_stmt_file(net));
       break;
     case IVL_ST_ASSIGN_NB:
       DEBUG0("Non-blocking assign statement\n");

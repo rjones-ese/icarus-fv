@@ -4,7 +4,7 @@ module simple_fsm(
    output a, b
 );
 
-other oth();
+other oth(.clk(clk), .x(x));
 
 parameter S0 = 2'b00;
 parameter S1 = 2'b01;
@@ -26,6 +26,8 @@ end
 
 endmodule
 
-module other();
+module other(input clk,input x);
 reg b = 0;
+always @ ( posedge clk )
+  b = x;
 endmodule
