@@ -1,4 +1,5 @@
 # include  <iverilog/ivl_target.h>
+# include "aiger.h"
 # include <stdio.h>
 # include <stdlib.h>
 # include <string.h>
@@ -27,7 +28,6 @@ char file_path [40];
 /******************************************************
  *      Method targetted by Icarus Verilog            *
  *****************************************************/
-
 int target_design(ivl_design_t des)
 {
   //Open File For Writing
@@ -71,7 +71,7 @@ int process_scope(ivl_scope_t scope){
     ivl_signal_t sig = ivl_scope_sig(scope,idx);
     switch(ivl_signal_port(sig)){
       case IVL_SIP_NONE:
-        DEBUG0("Not an port signal (%s)\n",ivl_signal_basename(sig));
+        DEBUG0("Not an port signal (%s)\n",ivl_signal_name(sig));
         break;
       case IVL_SIP_INOUT:
         WARNING("Inout signal not supported(%s)\n",ivl_signal_basename(sig));

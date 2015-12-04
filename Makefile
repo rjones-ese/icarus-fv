@@ -5,7 +5,9 @@ SRC_DIR = src
 
 #AIG Target
 AIG_TGT_DIR=$(SRC_DIR)/tgt-aig
-AIG_TGT_SRC=$(AIG_TGT_DIR)/aig-target.c
+AIG_TGT_SRC=$(AIG_TGT_DIR)/aig-target.c\
+						$(AIG_TGT_DIR)/aiger.c
+
 AIG_TGT_CONF=$(AIG_TGT_DIR)/aig.conf\
 						 $(AIG_TGT_DIR)/aig-s.conf
 
