@@ -34,3 +34,7 @@
 *.vpi
 *.vvp
 *.vcd
+
+# Build files
+build/
+*.tgt
