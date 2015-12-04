@@ -7,13 +7,13 @@
 // Logging
 #define LOG_LEVEL_DEBUG0
 #ifdef  LOG_LEVEL_DEBUG0
-#define DEBUG0(...)  printf("\e[1;32m AIG TARGET DEBUG   \e[0m| \t" __VA_ARGS__)
+#define DEBUG0(...)  printf("\e[1;32mIFV AIG TARGET DEBUG   \e[0m|| \t" __VA_ARGS__)
 #else
 #define DEBUG0(...)
 #endif
-#define WARNING(...) printf("\e[1;33m AIG TARGET WARNING \e[0m| \t" __VA_ARGS__)
-#define ERROR(...)   printf("\e[1;31m AIG TARGET ERROR   \e[0m| \t" __VA_ARGS__)
-#define INFO(...)    printf("\e[1;34m AIG TARGET INFO    \e[0m| \t" __VA_ARGS__)
+#define WARNING(...) printf("\e[1;33mIFV AIG TARGET WARNING \e[0m|| \t" __VA_ARGS__)
+#define ERROR(...)   printf("\e[1;31mIFV AIG TARGET ERROR   \e[0m|| \t" __VA_ARGS__)
+#define INFO(...)    printf("\e[1;34mIFV AIG TARGET INFO    \e[0m|| \t" __VA_ARGS__)
 
 
 // Method Declarations
@@ -24,6 +24,7 @@ static int process_statements(ivl_statement_t net, int level);
 
 // Global declarations
 char file_path [40];
+aiger * aiger_handle;
 
 /******************************************************
  *      Method targetted by Icarus Verilog            *
@@ -34,6 +35,8 @@ int target_design(ivl_design_t des)
   strcpy(file_path, ivl_design_flag(des, "-o"));
   INFO("File \"%s\" targetted for output \n",file_path);
 
+  //Initialize Aiger Library
+  aiger_handle = aiger_init();
 
   //Obtain Scopes from Design
   int num_scopes;
@@ -41,8 +44,9 @@ int target_design(ivl_design_t des)
   scopes = malloc(sizeof(ivl_scope_t *));
   _scopes = scopes;
   ivl_design_roots(des,scopes,&num_scopes);
-  int idx = 0;
+
   DEBUG0("Processing %d scopes\n",num_scopes);
+  int idx = 0;
   while (idx < num_scopes){
     process_scope(**scopes++);
     idx++;
@@ -53,7 +57,16 @@ int target_design(ivl_design_t des)
 
   show_constants(des);
 
-  //Close File
+  //Write file
+  INFO("Writing to file %s\n",file_path);
+  if ( !aiger_open_and_write_to_file(aiger_handle, file_path) ){
+    ERROR("Unable to write to file\n");
+  }else{
+    DEBUG0("Successfully wrote to file\n");
+  }
+
+  //Free Aiger Lib
+  aiger_free(aiger_handle);
 
   //Free Scope
   free(_scopes);

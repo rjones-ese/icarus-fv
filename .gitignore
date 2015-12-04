@@ -38,3 +38,7 @@
 # Build files
 build/
 *.tgt
+
+# Aiger files
+*.aig
+*.agg
