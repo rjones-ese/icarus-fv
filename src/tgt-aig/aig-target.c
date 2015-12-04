@@ -2,13 +2,14 @@
 # include <stdio.h>
 # include <stdlib.h>
 
-#define DEBUG0(...) printf("\e[1;34m AIG TARGET DEBUG:\e[0m " __VA_ARGS__)
-#define WARNING(...) printf("\e[0;33m AIG TARGET WARNING:\e[0m " __VA_ARGS__)
+#define DEBUG0(...) printf("\e[1;34m AIG TARGET DEBUG:\e[0m \t" __VA_ARGS__)
+#define WARNING(...) printf("\e[0;33m AIG TARGET WARNING:\e[0m \t" __VA_ARGS__)
 
 
 int process_scope(ivl_scope_t * scope);
 static int show_process(ivl_process_t net, void * x);
 int show_constants(ivl_design_t des);
+static int process_statements(ivl_statement_t net);
 
 int target_design(ivl_design_t des)
 {
@@ -70,21 +71,36 @@ int process_scope(ivl_scope_t * scope){
       IVL_ST_WHILE   = 23
 */
 static int show_process(ivl_process_t net, void * x){
-  DEBUG0("Process type %d from %s on line %d\n",ivl_statement_type(ivl_process_stmt(net)),ivl_process_file(net),ivl_process_lineno(net));
 
-  switch(ivl_statement_type(ivl_process_stmt(net))) {
+  process_statements(ivl_process_stmt(net));
+
+  //ivl_scope_t scope = ivl_process_scope(net);
+  //process_scope(&scope);
+
+  return 0;
+}
+
+static int process_statements(ivl_statement_t net){
+  switch(ivl_statement_type(net)) {
     case IVL_ST_ASSIGN:
       DEBUG0("Assign Statement\n");
       break;
     case IVL_ST_ASSIGN_NB:
       DEBUG0("Non-blocking assign statement\n");
       break;
+    case IVL_ST_BLOCK:
+      DEBUG0("Block of some sort\n");
+      break;
+    case IVL_ST_WAIT:
+      DEBUG0("Probably an @ process\n");
+      process_statements(ivl_stmt_sub_stmt(net));
+      break;
+    case IVL_ST_CASE:
+      DEBUG0("Case statement\n");
+      break;
     default:
-      WARNING("Unsupported statement\n");
+      WARNING("Unsupported statement \t Line: %d \t File: %s \t (Error: %d)\n",ivl_stmt_lineno(net), ivl_stmt_file(net), ivl_statement_type(net));
   }
-  ivl_scope_t scope = ivl_process_scope(net);
-  process_scope(&scope);
-
   return 0;
 }
 

@@ -16,5 +16,5 @@ aig.tgt:
 	gcc -o $(BUILD_DIR)/aig.tgt -fpic -shared $(AIG_TGT_SRC)
 
 run: aig.tgt
-	iverilog -t aig examples/simple_fsm/simple_fsm_tb.v examples/simple_fsm/simple_fsm.v
+	iverilog -t aig examples/simple_fsm/simple_fsm.v
 
