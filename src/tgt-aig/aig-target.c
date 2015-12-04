@@ -9,7 +9,7 @@
 int process_scope(ivl_scope_t * scope);
 static int show_process(ivl_process_t net, void * x);
 int show_constants(ivl_design_t des);
-static int process_statements(ivl_statement_t net);
+static int process_statements(ivl_statement_t net, int level);
 
 int target_design(ivl_design_t des)
 {
@@ -72,7 +72,7 @@ int process_scope(ivl_scope_t * scope){
 */
 static int show_process(ivl_process_t net, void * x){
 
-  process_statements(ivl_process_stmt(net));
+  process_statements(ivl_process_stmt(net),0);
 
   //ivl_scope_t scope = ivl_process_scope(net);
   //process_scope(&scope);
@@ -80,10 +80,13 @@ static int show_process(ivl_process_t net, void * x){
   return 0;
 }
 
-static int process_statements(ivl_statement_t net){
+static int process_statements(ivl_statement_t net,int level){
   switch(ivl_statement_type(net)) {
     case IVL_ST_ASSIGN:
-      DEBUG0("Assign Statement\n");
+      if ( level != 0 ) // Probably an initial condition
+        DEBUG0("Assign Statement\n");
+      else
+        DEBUG0("Assign Initial Condition statement\tLine: %d\tFile: %s\n",ivl_stmt_lineno(net),ivl_stmt_file(net));
       break;
     case IVL_ST_ASSIGN_NB:
       DEBUG0("Non-blocking assign statement\n");
@@ -92,8 +95,8 @@ static int process_statements(ivl_statement_t net){
       DEBUG0("Block of some sort\n");
       break;
     case IVL_ST_WAIT:
-      DEBUG0("Probably an @ process\n");
-      process_statements(ivl_stmt_sub_stmt(net));
+      DEBUG0("Probably an @ process \n");
+      process_statements(ivl_stmt_sub_stmt(net),++level);
       break;
     case IVL_ST_CASE:
       DEBUG0("Case statement\n");
