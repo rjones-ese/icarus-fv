@@ -28,13 +28,15 @@ int process_scope(ivl_scope_t scope, void * cd);
 static int show_process(ivl_process_t net, void * x);
 int show_constants(ivl_design_t des);
 static int process_statements(ivl_statement_t net, int level);
-
+int process_nexus( ivl_nexus_t nexus );
+int process_lpm( ivl_lpm_t lpm );
 // Aggregates outputs of top level scope
 //    - Requires: an ( already allocated ) array of signals and
 //      the maximum value that the array can hold.
-//    - Returns: -1 if number of outputs exceed array or the 
+//    - Returns: -1 if number of outputs exceed array or the
 //      number of outputs in the scope
 int aggregate_outputs ( ivl_signal_t * output, unsigned max );
+int process_logic( ivl_net_logic_t log );
 
 // Global declarations
 char file_path [40];
@@ -122,7 +124,7 @@ int target_design(ivl_design_t des)
   }
 
   // Parse Design Processes
-  ivl_design_process(des,show_process,0);
+  //ivl_design_process(des,show_process,0);
 
   show_constants(des);
 
@@ -164,72 +166,19 @@ int process_scope(ivl_scope_t scope,void * cd){
         process_nexus(nexus);
     }
   }
-
-
-  /*
-  ivl_statement_t stmt_net = ivl_scope_def(scope);
-  if ( stmt_net ) {
-    switch(ivl_statement_type( stmt_net )) {
-      case IVL_ST_ASSIGN_NB:
-        DEBUG0("Non-blocking assign statement\n");
-        break;
-      case IVL_ST_BLOCK:
-        DEBUG0("Block of some sort\n");
-        break;
-      case IVL_ST_WAIT:
-        DEBUG0("Probably an @ process \n");
-        break;
-      case IVL_ST_CASE:
-        DEBUG0("Case statement\n");
-        break;
-      default:
-        break;
-        WARNING("Unsupported statement \t Line: %d \t File: %s \t (Error: %d)\n",ivl_stmt_lineno(stmt_net), ivl_stmt_file(stmt_net), ivl_statement_type(stmt_net));
-    }
-  }
-  int idx;
-  //Get switches from scope
-  DEBUG0("Getting %d switches from scope\n",ivl_scope_switches(scope));
-  for ( idx = 0; idx < ivl_scope_switches(scope); idx++ ){
-    DEBUG0("%d event\n",idx);
-  }
-  //Get logic from scope
-  DEBUG0("Getting %d logic devices from scope\n",ivl_scope_logs(scope));
-  for ( idx = 0; idx < ivl_scope_logs(scope); idx++ ){
-    DEBUG0("%d logic %s\n",idx,ivl_logic_basename(ivl_scope_log(scope,idx)));
-  }
-  //Iterate through signals to find output ports
-  DEBUG0("Determining output pins within scope\n");
-  DEBUG0("IVL Scope %s\n",ivl_scope_tname(scope));
-  for ( idx = 0; idx < ivl_scope_sigs(scope); idx++ ) {
-    ivl_signal_t sig = ivl_scope_sig(scope,idx);
-    switch(ivl_signal_port(sig)){
-      case IVL_SIP_NONE:
-        DEBUG0("Not a port signal (%s)\n",ivl_signal_name(sig));
-        break;
-      case IVL_SIP_INOUT:
-        WARNING("Inout signal not supported(%s)\n",ivl_signal_basename(sig));
-        INFO("***Treating signal as input***\n");
-      case IVL_SIP_INPUT:
-        DEBUG0("Input signal (%s)\n",ivl_signal_basename(sig));
-        break;
-      case IVL_SIP_OUTPUT:
-        INFO("Output signal (%s)\n",ivl_signal_basename(sig));
-        break;
-
-      default:
-        ERROR("Unknown signal type\n");
-        return -1;
-    }
-  }
-  */
   ivl_scope_children(scope,process_scope,0);
 
   return 0;
 }
 
 int process_nexus( ivl_nexus_t nexus ){
-  INFO("Processing Nexus\n");
+  if ( ivl_nexus_get_private( nexus ) ){
+    DEBUG0("Nexus already processed (%s)\n",ivl_nexus_name(nexus));
+    return 0;
+  }
+  DEBUG0("Processing Nexus (%s)\n", ivl_nexus_name(nexus));
+  ivl_nexus_set_private( nexus,(void * ) 1);
+
   int idx, ptrs;
   ivl_nexus_ptr_t nexus_ptr;
   ivl_signal_t nex_signal;
@@ -259,19 +208,70 @@ int process_nexus( ivl_nexus_t nexus ){
 
     if( 0 != nex_signal ) //Pointer is a signal object
       DEBUG0("Ptr Signal %s\n", ivl_signal_name(nex_signal));
-    else if( 0 != nex_logic ) //Pointer is a logic object
-      DEBUG0("Ptr Logic %s\n", ivl_logic_name(nex_logic));
     else if( 0 != nex_switch )
       DEBUG0("Ptr Switch %s\n",ivl_switch_basename(nex_switch));
     else if( 0 != nex_branch )
       DEBUG0("Ptr Branch\n");
-    else if( 0 != nex_lpm )
-      DEBUG0("Ptr LPM%s\n",ivl_lpm_basename(nex_lpm));
+
+    process_logic( ivl_nexus_ptr_log(nexus_ptr) );
+    process_lpm( ivl_nexus_ptr_lpm(nexus_ptr) );
 
   }
   int num_nexus_ptrs = ivl_nexus_ptrs(nexus);
-  DEBUG0("Nexus PTRS %d\n",num_nexus_ptrs);
+  //DEBUG0("Nexus PTRS %d\n",num_nexus_ptrs);
 
+  return 0;
+}
+
+int process_lpm( ivl_lpm_t lpm ){
+  if ( 0 == lpm )
+    return 0;
+
+  DEBUG0("lpm %d\n", ivl_lpm_type( lpm ) );
+  /*
+  switch ( ivl_lpm_type( lpm ) ){
+
+    case IVL_LPM_
+  }
+  */
+  return 0;
+}
+int process_logic( ivl_net_logic_t log ){
+  int idx;
+  if ( 0 == log )
+    return 0;
+
+  switch ( ivl_logic_type(log)){
+    case IVL_LO_BUFIF0 :
+    case IVL_LO_BUFIF1 :
+    case IVL_LO_BUFZ   :
+      DEBUG0("Buffer %s\n",ivl_logic_basename(log));
+      for ( idx = 0; idx < ivl_logic_pins(log); idx++ ){
+        process_nexus(ivl_logic_pin(log,idx));
+      }
+      break;
+    case IVL_LO_NONE   :
+    case IVL_LO_AND    :
+    case IVL_LO_BUF    :
+    case IVL_LO_CMOS   :
+    case IVL_LO_NAND   :
+    case IVL_LO_NMOS   :
+    case IVL_LO_NOR    :
+    case IVL_LO_NOT    :
+    case IVL_LO_NOTIF0 :
+    case IVL_LO_NOTIF1 :
+    case IVL_LO_OR     :
+    case IVL_LO_PULLDOWN:
+    case IVL_LO_PULLUP :
+    case IVL_LO_RCMOS  :
+    case IVL_LO_RNMOS  :
+    case IVL_LO_RPMOS  :
+    case IVL_LO_PMOS   :
+    case IVL_LO_XNOR   :
+    case IVL_LO_XOR    :
+    default:
+      WARNING("Unsupported logic element:\t%s\n",ivl_logic_basename(log));
+  }
   return 0;
 }
 

@@ -11,7 +11,9 @@ parameter S1 = 2'b01;
 parameter S2 = 2'b10;
 parameter S3 = 2'b11;
 
-assign {a,b} = state;
+//assign {a,b} = state;
+assign a = state[0];
+assign b = state[1];
 
 reg [1:0] state = S0;
 
