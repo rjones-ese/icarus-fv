@@ -29,5 +29,5 @@ endmodule
 module other(input clk,input x);
 reg b = 0;
 always @ ( posedge clk )
-  b = x;
+  b <= x;
 endmodule
