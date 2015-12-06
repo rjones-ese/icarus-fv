@@ -9,19 +9,23 @@ module simple_module (
 assign c = ~(a & b);
 
 //assign d = a & b;
-assign d = 1;
+assign d = 0;
 
 reg q;
 
 initial begin
-  $aig_bad(a,"hi");
+  $aig_bad(d,"hi");
 end
 
 always @ ( posedge clk ) begin
 
   if ( a ) begin
     if (d )
-      q <= ~( a | b & c);
+      q <= a;//1'b1;//~( a | b & c);
+    /*
+    else
+      q <= a & b;
+    */
   end
 end
 
