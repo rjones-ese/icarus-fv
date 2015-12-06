@@ -1,10 +1,13 @@
 module simple_module (
   input clk,
   input a,
-  input c,
+  //input c,
   output b
 );
 
+assign b = a;
+
+/*
 reg q;
 
 assign b = ~ ( a & c ) | q;
@@ -16,5 +19,6 @@ always @ ( posedge clk ) begin
     q <= 0;
 
 end
+*/
 
 endmodule

@@ -28,15 +28,24 @@ int process_scope(ivl_scope_t scope, void * cd);
 static int show_process(ivl_process_t net, void * x);
 int show_constants(ivl_design_t des);
 static int process_statements(ivl_statement_t net, int level);
-int process_nexus( ivl_nexus_t nexus );
-int process_lpm( ivl_lpm_t lpm );
-int process_logic( ivl_net_logic_t log );
+int process_nexus ( ivl_signal_t parent, ivl_nexus_t nexus );
+int process_lpm   ( ivl_signal_t parent, ivl_lpm_t lpm );
+int process_logic ( ivl_signal_t parent, ivl_net_logic_t log );
 int process_signal( ivl_signal_t sig );
 
 // Global declarations
 char file_path [40];
 aiger * aiger_handle;
 unsigned aiger_index = 0;
+
+//Aiger index
+# define MAX_AIGER_LITERAL 100
+ivl_signal_t aiger_signals[MAX_AIGER_LITERAL];
+unsigned aiger_signal_len = 0;
+unsigned get_aiger_signal_index( ivl_signal_t sig );
+# define IDX(x) get_aiger_signal_index(x)
+# define LIT(x) aiger_var2lit(IDX(x))
+# define FALSE_LIT LIT( (ivl_signal_t) NULL )
 
 // Literal Lookup Table Declarations
 
@@ -100,9 +109,6 @@ int target_design(ivl_design_t des)
   //Initialize Aiger Library
   aiger_handle = aiger_init();
 
-  //Init Lookup Table
-  lit_init();
-
   //Obtain Scopes from Design
   int num_scopes;
   ivl_scope_t  ** scopes, ** _scopes;
@@ -120,8 +126,6 @@ int target_design(ivl_design_t des)
   // Parse Design Processes
   ivl_design_process(des,show_process,0);
 
-  show_constants(des);
-
   //Write file
   aiger_add_comment(aiger_handle,IFV_AIGER_COMMENT);
   INFO("Writing to file %s\n",file_path);
@@ -138,9 +142,6 @@ int target_design(ivl_design_t des)
   //Free Scope
   free(_scopes);
 
-  //Free Lookup Table
-  lit_free();
-
   return ret_val;
 }
 
@@ -155,9 +156,10 @@ int process_scope(ivl_scope_t scope,void * cd){
     ivl_nexus_t nexus;
     ivl_signal_t sig = ivl_scope_sig(scope,idx);
     if ( IVL_SIGNAL_IS_OUTPUT( sig ) ){
+        aiger_add_output(aiger_handle,LIT(sig),ivl_signal_name(sig));
         INFO("Output signal (%s)\n",ivl_signal_name(sig));
         nexus = ivl_signal_nex(sig,0);
-        process_nexus(nexus);
+        process_nexus(sig,nexus);
     }
   }
   ivl_scope_children(scope,process_scope,0);
@@ -166,7 +168,7 @@ int process_scope(ivl_scope_t scope,void * cd){
 }
 
 unsigned nexus_counter = 0;
-int process_nexus( ivl_nexus_t nexus ){
+int process_nexus( ivl_signal_t parent, ivl_nexus_t nexus ){
 
   if ( ivl_nexus_get_private( nexus ) ){
     //DEBUG0("Nexus already processed (%s)\n",ivl_nexus_name(nexus));
@@ -194,11 +196,13 @@ int process_nexus( ivl_nexus_t nexus ){
     nex_branch = ivl_nexus_ptr_branch(nexus_ptr);
     nex_lpm    = ivl_nexus_ptr_lpm(nexus_ptr);
 
+    /*
     DEBUG0("(%d) Ptr %d %d\n",
     nexus_counter,
     ivl_nexus_ptr_pin( nexus_ptr ),
     ivl_nexus_ptr_con( nexus_ptr )
     );
+    */
 
     if( 0 != nex_switch )
       DEBUG0("Ptr Switch %s\n",ivl_switch_basename(nex_switch));
@@ -209,17 +213,17 @@ int process_nexus( ivl_nexus_t nexus ){
     //if ( 0 != ivl_nexu
 
     process_signal( ivl_nexus_ptr_sig (nexus_ptr) );
-    process_logic ( ivl_nexus_ptr_log (nexus_ptr) );
-    process_lpm   ( ivl_nexus_ptr_lpm (nexus_ptr) );
+    process_logic ( parent, ivl_nexus_ptr_log (nexus_ptr) );
+    process_lpm   ( parent, ivl_nexus_ptr_lpm (nexus_ptr) );
 
   }
-  int num_nexus_ptrs = ivl_nexus_ptrs(nexus);
+  //int num_nexus_ptrs = ivl_nexus_ptrs(nexus);
   //DEBUG0("Nexus PTRS %d\n",num_nexus_ptrs);
 
   return 0;
 }
 
-int process_lpm( ivl_lpm_t lpm ){
+int process_lpm( ivl_signal_t parent, ivl_lpm_t lpm ){
   if ( 0 == lpm )
     return 0;
 
@@ -232,7 +236,7 @@ int process_lpm( ivl_lpm_t lpm ){
   */
   return 0;
 }
-int process_logic( ivl_net_logic_t log ){
+int process_logic(ivl_signal_t parent, ivl_net_logic_t log ){
   int idx;
   if ( 0 == log )
     return 0;
@@ -276,8 +280,8 @@ int process_logic( ivl_net_logic_t log ){
       WARNING("Unsupported logic element:\t%s\n",ivl_logic_basename(log));
   }
   for ( idx = 0; idx < ivl_logic_pins(log); idx++ ){
-    DEBUG0("(%d) pin %d\n",nexus_counter,idx);
-    process_nexus(ivl_logic_pin(log,idx));
+    //DEBUG0("(%d) pin %d\n",nexus_counter,idx);
+    process_nexus( parent, ivl_logic_pin(log,idx));
   }
   return 0;
 }
@@ -288,13 +292,14 @@ int process_signal( ivl_signal_t sig ){
 
   DEBUG0("Processing signal %s (level %d)\n",ivl_signal_basename(sig),nexus_counter);
   if ( IVL_SIGNAL_IS_INPUT( sig ) ){
+      aiger_add_input(aiger_handle,LIT(sig),ivl_signal_basename(sig));
       INFO("Input signal (%s)\n",ivl_signal_name(sig));
       return 0;
   }
 
   int idx;
 
-  process_nexus(ivl_signal_nex(sig,0));
+  process_nexus(sig, ivl_signal_nex(sig,0));
   return 0;
 }
 static int show_process(ivl_process_t net, void * x){
@@ -349,4 +354,29 @@ int show_constants(ivl_design_t des){
   return 0;
 }
 
+unsigned get_aiger_signal_index( ivl_signal_t sig ){
+  int idx;
 
+  //Return index of signal if already stored in array
+  if( NULL != sig ){
+    for(idx=0;idx<aiger_signal_len;idx++){
+      if ( 0 == strcmp( ivl_signal_basename(sig), ivl_signal_basename( aiger_signals[idx] ))){
+          DEBUG0("LUT: Returning %s @ index %d\n",ivl_signal_basename(sig),idx+1);
+          return idx+1;
+      }
+    }
+  }
+
+  //Quit if array has exceeded max
+  //TODO Dynamically allocate more memory
+  if ( aiger_signal_len == MAX_AIGER_LITERAL ){
+    ERROR("LUT: Maximum signals exceeded\n");
+    return 0;
+  }
+
+  //Add element to array
+  aiger_signals [aiger_signal_len++] = sig;
+  DEBUG0("LUT: Adding signal %s at index %d\n",(NULL == sig)? "FALSE LIT":ivl_signal_basename(sig),aiger_signal_len);
+
+  return aiger_signal_len;
+}
