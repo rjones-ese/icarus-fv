@@ -151,15 +151,26 @@ int process_scope(ivl_scope_t scope,void * cd){
   //Iterate through signals to find output ports
   DEBUG0("Determining output pins within scope\n");
   int idx;
+  unsigned input_lit, output_lit, ret_lit;
 
   for ( idx = 0; idx < ivl_scope_sigs(scope); idx++ ) {
     ivl_nexus_t nexus;
     ivl_signal_t sig = ivl_scope_sig(scope,idx);
     if ( IVL_SIGNAL_IS_OUTPUT( sig ) ){
-        aiger_add_output(aiger_handle,LIT(sig),ivl_signal_name(sig));
+        output_lit = LIT(sig);
+        aiger_add_output(aiger_handle,output_lit,ivl_signal_name(sig));
         INFO("Output signal (%s)\n",ivl_signal_name(sig));
         nexus = ivl_signal_nex(sig,0);
-        process_nexus(sig,nexus);
+        ret_lit = process_nexus(sig,nexus);
+        aiger_add_and( aiger_handle, output_lit, ret_lit, ret_lit );
+    }
+  }
+  for ( idx = 0; idx < ivl_scope_sigs(scope); idx++ ) {
+    ivl_signal_t sig = ivl_scope_sig(scope,idx);
+    if ( IVL_SIGNAL_IS_INPUT( sig ) ){
+        input_lit = LIT(sig);
+        aiger_add_input(aiger_handle,input_lit,ivl_signal_name(sig));
+        INFO("Input signal (%s)\n",ivl_signal_name(sig));
     }
   }
   ivl_scope_children(scope,process_scope,0);
@@ -176,7 +187,7 @@ unsigned process_nexus( ivl_signal_t parent, ivl_nexus_t nexus ){
   if ( ivl_nexus_get_private( nexus ) ){
     return 0;
   }
-  DEBUG0("Nexus level %d\n",nexus_counter++);
+  //DEBUG0("Nexus level %d\n",nexus_counter++);
 
   ivl_nexus_set_private( nexus,(void * ) 1);
 
@@ -236,31 +247,42 @@ unsigned process_logic(ivl_signal_t parent, ivl_net_logic_t log ){
   if ( 0 == log )
     return 0;
 
+  unsigned lit, false_lit, ret_lit, ret_lit2;
+  lit = LIT(parent);
+
   switch ( ivl_logic_type(log)){
 
     // Implemented logical functions
+    case IVL_LO_BUF    :
     case IVL_LO_BUFIF0 :
     case IVL_LO_BUFIF1 :
     case IVL_LO_BUFZ   :
-      DEBUG0("Buffer (%d)  %s \n", ivl_logic_pins(log), ivl_logic_basename(log));
-      unsigned lit = LIT(parent);
-      unsigned ret_lit = process_nexus( parent, ivl_logic_pin(log,1));
+      ret_lit = process_nexus( parent, ivl_logic_pin(log,1));
       DEBUG0("Buffer (@%u) getting literal %u\n",lit,ret_lit);
-      aiger_add_and( aiger_handle, lit, ret_lit , lit );
-      break;
+      aiger_add_and( aiger_handle, lit, ret_lit , ret_lit );
+      return lit;
     case IVL_LO_NOT    :
-      DEBUG0("Not element\n");
-      break;
+      ret_lit = aiger_not(process_nexus( parent, ivl_logic_pin(log,1)));
+      false_lit = FALSE_LIT;
+      DEBUG0("NOT (@%u) getting literal %u\n",lit,ret_lit);
+      aiger_add_and( aiger_handle, false_lit, ret_lit , ret_lit );
+      return false_lit;
     case IVL_LO_AND    :
-      DEBUG0("And element\n");
-      break;
+      //DEBUG0("And pins %d\n", ivl_logic_pins(log) );
+      if ( ivl_logic_pins(log) > 3 )
+        WARNING("AND logic currently only supports the anding of two variables (only including first two)\n");
+      false_lit = FALSE_LIT;
+      ret_lit = aiger_not(process_nexus( parent, ivl_logic_pin(log,1)));
+      ret_lit2 = aiger_not(process_nexus( parent, ivl_logic_pin(log,2)));
+      DEBUG0("AND (@%u) getting literals %u %u\n",lit,ret_lit,ret_lit2);
+      aiger_add_and(aiger_handle, false_lit, ret_lit, ret_lit2);
+      return false_lit;
     case IVL_LO_OR     :
       DEBUG0("Or element\n");
       break;
 
     // Unimplemented logical functions
     case IVL_LO_NONE   :
-    case IVL_LO_BUF    :
     case IVL_LO_CMOS   :
     case IVL_LO_NAND   :
     case IVL_LO_NMOS   :
@@ -284,7 +306,7 @@ unsigned process_logic(ivl_signal_t parent, ivl_net_logic_t log ){
     process_nexus( parent, ivl_logic_pin(log,idx));
   }
   */
-  return 0;
+  return lit;
 }
 
 unsigned process_signal( ivl_signal_t sig ){
@@ -294,8 +316,8 @@ unsigned process_signal( ivl_signal_t sig ){
   DEBUG0("Processing signal %s (level %d)\n",ivl_signal_basename(sig),nexus_counter);
   if ( IVL_SIGNAL_IS_INPUT( sig ) ){
       unsigned lit = LIT(sig);
-      aiger_add_input(aiger_handle,lit,ivl_signal_basename(sig));
-      INFO("Input signal %s (literal index %u)\n",ivl_signal_name(sig),lit);
+      //aiger_add_input(aiger_handle,lit,ivl_signal_basename(sig));
+      INFO("Input signal %s (@%u)\n",ivl_signal_name(sig),lit);
       return lit;
   }
 
@@ -362,7 +384,7 @@ unsigned get_aiger_signal_index( ivl_signal_t sig ){
   //Return index of signal if already stored in array
   if( NULL != sig ){
     for(idx=0;idx<aiger_signal_len;idx++){
-      if ( 0 == strcmp( ivl_signal_basename(sig), ivl_signal_basename( aiger_signals[idx] ))){
+      if ( NULL != aiger_signals[idx] && 0 == strcmp( ivl_signal_basename(sig), ivl_signal_basename( aiger_signals[idx] ))){
           DEBUG0("LUT: Returning %s @ index %d\n",ivl_signal_basename(sig),idx+1);
           return idx+1;
       }

@@ -1,11 +1,14 @@
 module simple_module (
   input clk,
   input a,
-  //input c,
-  output b
+  input b,
+  output c,
+  output d
 );
 
-assign b = a;
+assign c = ~(a & b);
+//assign d = a & b;
+assign d = ~a;
 
 /*
 reg q;
