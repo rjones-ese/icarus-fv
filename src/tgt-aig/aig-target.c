@@ -35,6 +35,7 @@ unsigned process_nexus ( ivl_signal_t parent, ivl_nexus_t nexus );
 unsigned process_lpm   ( ivl_signal_t parent, ivl_lpm_t lpm );
 unsigned process_logic ( ivl_signal_t parent, ivl_net_logic_t log );
 unsigned process_signal( ivl_signal_t sig );
+unsigned process_constant( ivl_signal_t parent, ivl_net_const_t net );
 int process_pli   ( ivl_statement_t net  );
 
 // Global declarations
@@ -163,13 +164,11 @@ unsigned process_nexus( ivl_signal_t parent, ivl_nexus_t nexus ){
   for ( idx = 0; idx < ivl_nexus_ptrs(nexus); idx++ ){
     nexus_ptr = ivl_nexus_ptr(nexus,idx);
 
-    /*
     DEBUG0("(%d) Ptr %d %d\n",
     nexus_counter,
     ivl_nexus_ptr_pin( nexus_ptr ),
     ivl_nexus_ptr_con( nexus_ptr )
     );
-    */
 
     ivl_switch_t nex_switch = ivl_nexus_ptr_switch(nexus_ptr);
     ivl_branch_t nex_branch = ivl_nexus_ptr_branch(nexus_ptr);
@@ -180,6 +179,8 @@ unsigned process_nexus( ivl_signal_t parent, ivl_nexus_t nexus ){
       WARNING("Branch unimplimented \n");
 
 #define RETURN_IF_VALID(x) if (x > 0) { ivl_nexus_set_private( nexus,(void * ) 0); return x; }
+    unsigned con_lit =process_constant( parent, ivl_nexus_ptr_con(nexus_ptr));
+    RETURN_IF_VALID(con_lit);
     unsigned sig_lit =process_signal( ivl_nexus_ptr_sig (nexus_ptr) );
     RETURN_IF_VALID(sig_lit);
     unsigned log_lit =process_logic ( parent, ivl_nexus_ptr_log (nexus_ptr) );
@@ -276,6 +277,11 @@ unsigned process_logic(ivl_signal_t parent, ivl_net_logic_t log ){
   return lit;
 }
 
+unsigned process_constant( ivl_signal_t parent, ivl_net_const_t net ){
+  if( 0 == net)
+    return 0;
+  return '1' == ivl_const_bits(net)[0];
+}
 unsigned process_signal( ivl_signal_t sig ){
   if ( 0 == sig )
     return 0;
@@ -301,7 +307,6 @@ static int show_process(ivl_process_t net, void * x){
 
   return process_statements(ivl_process_stmt(net),0);
 }
-
 unsigned process_assignments(ivl_statement_t net, unsigned condition){
   ivl_signal_t lsig,rsig;
   unsigned llit,rlit;

@@ -9,14 +9,12 @@ module simple_module (
 assign c = ~(a & b);
 
 //assign d = a & b;
-assign d = a | q;
+assign d = 1;
 
 reg q;
 
-wire bad_a = (a == q);
-
 initial begin
-  $aig_constraint(a,"hi");
+  $aig_bad(a,"hi");
 end
 
 always @ ( posedge clk ) begin
@@ -25,14 +23,6 @@ always @ ( posedge clk ) begin
     if (d )
       q <= ~( a | b & c);
   end
-  /*
-  if (b)
-    q <= ~a;
-  else
-    q <= 0;
-  */
-
-
 end
 
 endmodule
