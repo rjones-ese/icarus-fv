@@ -13,15 +13,18 @@ assign d = a | q;
 
 reg q;
 
-wire bad_a = a & q;
+wire bad_a = (a == q);
 
 initial begin
-  $aig_constraint(0,"hi");
+  $aig_constraint(a,"hi");
 end
 
 always @ ( posedge clk ) begin
 
-  q <= ~( a | b & c);
+  if ( a ) begin
+    if (d )
+      q <= ~( a | b & c);
+  end
   /*
   if (b)
     q <= ~a;

@@ -29,8 +29,8 @@
 int process_scope(ivl_scope_t scope, void * cd);
 static int show_process(ivl_process_t net, void * x);
 int show_constants(ivl_design_t des);
-unsigned process_statements(ivl_statement_t net);
-unsigned process_assignments(ivl_statement_t net, unsigned lhs_lit);
+unsigned process_statements(ivl_statement_t net, unsigned condition);
+unsigned process_assignments(ivl_statement_t net, unsigned condition);
 unsigned process_nexus ( ivl_signal_t parent, ivl_nexus_t nexus );
 unsigned process_lpm   ( ivl_signal_t parent, ivl_lpm_t lpm );
 unsigned process_logic ( ivl_signal_t parent, ivl_net_logic_t log );
@@ -299,10 +299,10 @@ unsigned process_signal( ivl_signal_t sig ){
 }
 static int show_process(ivl_process_t net, void * x){
 
-  return process_statements(ivl_process_stmt(net));
+  return process_statements(ivl_process_stmt(net),0);
 }
 
-unsigned process_assignments(ivl_statement_t net, unsigned lhs_lit){
+unsigned process_assignments(ivl_statement_t net, unsigned condition){
   ivl_signal_t lsig,rsig;
   unsigned llit,rlit;
   ivl_expr_t rexpr;
@@ -317,7 +317,13 @@ unsigned process_assignments(ivl_statement_t net, unsigned lhs_lit){
       //rlit = LIT(rsig);
       DEBUG0("RHS expression signal %s (@%u)\n",ivl_signal_basename(rsig),rlit);
       rlit = process_signal(rsig);
-      aiger_add_latch(aiger_handle, llit, rlit,ivl_signal_name(lsig));
+      if (condition){
+        unsigned false_lit = FALSE_LIT;
+        aiger_add_and( aiger_handle, false_lit, rlit, condition);
+        aiger_add_latch(aiger_handle, llit, false_lit, ivl_signal_name(lsig));
+      }else{
+        aiger_add_latch(aiger_handle, llit, rlit,ivl_signal_name(lsig));
+      }
       return rlit;
 
     case IVL_EX_BINARY:
@@ -333,7 +339,12 @@ unsigned process_assignments(ivl_statement_t net, unsigned lhs_lit){
 
   return 0;
 }
-unsigned process_statements(ivl_statement_t net){
+unsigned process_statements(ivl_statement_t net, unsigned condition){
+
+  ivl_expr_t expr;
+  unsigned condition_lit, false_lit, false_lit2;
+  ivl_statement_t next_net;
+
   switch(ivl_statement_type(net)) {
     case IVL_ST_ASSIGN:
       WARNING("Blocking statements not supported \t\t\tLine: %d\tFile: %s\n",ivl_stmt_lineno(net),ivl_stmt_file(net));
@@ -341,19 +352,31 @@ unsigned process_statements(ivl_statement_t net){
       //WARNING("Assign Initial Condition statement not supported\tLine: %d\tFile: %s\n",ivl_stmt_lineno(net),ivl_stmt_file(net));
     case IVL_ST_ASSIGN_NB:
       DEBUG0("Non-blocking assign statement\n");
-      return process_assignments(net, 0);
+      return process_assignments(net, condition);
     case IVL_ST_BLOCK:
       DEBUG0("Block of some sort\n");
       break;
     case IVL_ST_WAIT:
       DEBUG0("Probably an @ process \n");
-      process_statements(ivl_stmt_sub_stmt(net));
+      process_statements(ivl_stmt_sub_stmt(net),0);
       break;
     case IVL_ST_CASE:
       DEBUG0("Case statement\n");
       break;
     case IVL_ST_CONDIT:
       DEBUG0("Conditional statement\n");
+      expr = ivl_stmt_cond_expr(net);
+      condition_lit = process_signal(ivl_expr_signal(expr));
+      false_lit = FALSE_LIT;
+      aiger_add_and( aiger_handle, false_lit, condition_lit, condition_lit );
+      process_statements( ivl_stmt_cond_true(net), false_lit );
+      if(condition){ //append another condition
+        false_lit2 = FALSE_LIT;
+        aiger_add_and( aiger_handle, false_lit2, false_lit, condition );
+      }
+      next_net = ivl_stmt_cond_false(net);
+      if (0 != next_net)
+        process_statements( next_net, aiger_not(false_lit));
       break;
     case IVL_ST_STASK:
       process_pli(net);
