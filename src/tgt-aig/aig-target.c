@@ -29,7 +29,8 @@
 int process_scope(ivl_scope_t scope, void * cd);
 static int show_process(ivl_process_t net, void * x);
 int show_constants(ivl_design_t des);
-static int process_statements(ivl_statement_t net, int level);
+unsigned process_statements(ivl_statement_t net);
+unsigned process_assignments(ivl_statement_t net);
 unsigned process_nexus ( ivl_signal_t parent, ivl_nexus_t nexus );
 unsigned process_lpm   ( ivl_signal_t parent, ivl_lpm_t lpm );
 unsigned process_logic ( ivl_signal_t parent, ivl_net_logic_t log );
@@ -214,8 +215,7 @@ unsigned process_logic(ivl_signal_t parent, ivl_net_logic_t log ){
     case IVL_LO_BUFZ   :
       ret_lit = process_nexus( parent, ivl_logic_pin(log,1));
       DEBUG0("Buffer (@%u) getting literal %u\n",lit,ret_lit);
-      aiger_add_and( aiger_handle, lit, ret_lit , ret_lit );
-      return lit;
+      return ret_lit;
     case IVL_LO_NOT    :
       ret_lit = aiger_not(process_nexus( parent, ivl_logic_pin(log,1)));
       false_lit = FALSE_LIT;
@@ -278,42 +278,72 @@ unsigned process_signal( ivl_signal_t sig ){
       return lit;
   }
 
-  int idx;
+  if ( ivl_signal_type(sig) == IVL_SIT_REG ){
+    unsigned lit = LIT(sig);
+    DEBUG0("Reg @ %u\n",lit);
+    return lit;
+  }
 
   return process_nexus(sig, ivl_signal_nex(sig,0));
 }
 static int show_process(ivl_process_t net, void * x){
 
-  process_statements(ivl_process_stmt(net),0);
-
-  //ivl_scope_t scope = ivl_process_scope(net);
-  //process_scope(&scope);
-
+  process_statements(ivl_process_stmt(net));
   return 0;
 }
 
-static int process_statements(ivl_statement_t net,int level){
+unsigned process_assignments(ivl_statement_t net){
+  ivl_signal_t lsig,rsig;
+  unsigned llit,rlit;
+  ivl_expr_t rexpr;
+  lsig = ivl_lval_sig(ivl_stmt_lval(net,0));
+  llit = LIT(lsig);
+  DEBUG0("LHS Signal %s (@%u)\n",ivl_signal_basename(lsig),llit);
+
+  rexpr = ivl_stmt_rval( net );
+  switch ( ivl_expr_type( rexpr )){
+    case IVL_EX_SIGNAL:
+      rsig = ivl_expr_signal(rexpr);
+      rlit = LIT(rsig);
+      DEBUG0("RHS expression signal %s (@%u)\n",ivl_signal_basename(rsig),rlit);
+      process_signal(rsig);
+      aiger_add_latch(aiger_handle, llit, rlit,ivl_signal_name(lsig));
+      return rlit;
+
+    case IVL_EX_BINARY:
+      WARNING("Unsupported RHS expression binary\n");
+      break;
+    case IVL_EX_TERNARY:
+      WARNING("Unsupported RHS ternary expression\n");
+      break;
+    default:
+      WARNING("Unsupported RHS expression %d\n", ivl_expr_type( ivl_stmt_rval(net) ));
+  }
+
+
+  return 0;
+}
+unsigned process_statements(ivl_statement_t net){
   switch(ivl_statement_type(net)) {
     case IVL_ST_ASSIGN:
-      if ( level != 0 ){
-        WARNING("Blocking statements not supported \t\t\tLine: %d\tFile: %s\n",ivl_stmt_lineno(net),ivl_stmt_file(net));
-        INFO("*** Treating blocking assignment as non-blocking assignment ***\n");
-      }else{
-        WARNING("Assign Initial Condition statement not supported\tLine: %d\tFile: %s\n",ivl_stmt_lineno(net),ivl_stmt_file(net));
-        break;
-      }
+      WARNING("Blocking statements not supported \t\t\tLine: %d\tFile: %s\n",ivl_stmt_lineno(net),ivl_stmt_file(net));
+      INFO("*** Treating blocking assignment as non-blocking assignment ***\n");
+      //WARNING("Assign Initial Condition statement not supported\tLine: %d\tFile: %s\n",ivl_stmt_lineno(net),ivl_stmt_file(net));
     case IVL_ST_ASSIGN_NB:
       DEBUG0("Non-blocking assign statement\n");
-      break;
+      return process_assignments(net);
     case IVL_ST_BLOCK:
       DEBUG0("Block of some sort\n");
       break;
     case IVL_ST_WAIT:
       DEBUG0("Probably an @ process \n");
-      process_statements(ivl_stmt_sub_stmt(net),++level);
+      process_statements(ivl_stmt_sub_stmt(net));
       break;
     case IVL_ST_CASE:
       DEBUG0("Case statement\n");
+      break;
+    case IVL_ST_CONDIT:
+      DEBUG0("Conditional statement\n");
       break;
     default:
       WARNING("Unsupported statement \t Line: %d \t File: %s \t (Error: %d)\n",ivl_stmt_lineno(net), ivl_stmt_file(net), ivl_statement_type(net));
