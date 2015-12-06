@@ -49,53 +49,6 @@ unsigned get_aiger_signal_index( ivl_signal_t sig );
 # define LIT(x) aiger_var2lit(IDX(x))
 # define FALSE_LIT LIT( (ivl_signal_t) NULL )
 
-// Literal Lookup Table Declarations
-
-// Literal type
-typedef struct lit_s {
-  unsigned index;
-  ivl_signal_t signal;
-} lit_t;
-
-// Crude lookup table structure
-struct lit_lut_s {
-  lit_t * literals;
-  lit_t * literal_head;
-  unsigned literal_len;
-  unsigned literal_max;
-};
-
-//Global table
-struct lit_lut_s lit_lut;
-
-//Lookup table methods
-int          lit_init     ( void );
-void         lit_free     ( void );
-unsigned     lit_add      ( const char * name );
-unsigned     lit_get_index( const char * name );
-const char * lit_get_name ( unsigned idx );
-void         lit_iterate  ( void (* lit_iterate_cb ) ( unsigned idx, ivl_signal_t * sig ));
-
-#define MAX_LIT 100
-
-int lit_init ( void ){
-  lit_lut.literals = malloc( MAX_LIT * sizeof(lit_t));
-  lit_lut.literal_head = lit_lut.literals;
-  lit_lut.literal_max = MAX_LIT;
-  return 0;
-}
-
-void lit_free ( void ){
-  free(lit_lut.literals);
-}
-
-unsigned lit_add ( const char * name ){
-  if ( lit_lut.literal_len < lit_lut.literal_max ){
-    return lit_lut.literal_len++;
-  }
-  return 0;
-}
-
 
 /******************************************************
  *      Method targetted by Icarus Verilog            *
