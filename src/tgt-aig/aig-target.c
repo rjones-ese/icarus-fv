@@ -30,7 +30,7 @@ int process_scope(ivl_scope_t scope, void * cd);
 static int show_process(ivl_process_t net, void * x);
 int show_constants(ivl_design_t des);
 unsigned process_statements(ivl_statement_t net);
-unsigned process_assignments(ivl_statement_t net);
+unsigned process_assignments(ivl_statement_t net, unsigned lhs_lit);
 unsigned process_nexus ( ivl_signal_t parent, ivl_nexus_t nexus );
 unsigned process_lpm   ( ivl_signal_t parent, ivl_lpm_t lpm );
 unsigned process_logic ( ivl_signal_t parent, ivl_net_logic_t log );
@@ -292,7 +292,7 @@ static int show_process(ivl_process_t net, void * x){
   return 0;
 }
 
-unsigned process_assignments(ivl_statement_t net){
+unsigned process_assignments(ivl_statement_t net, unsigned lhs_lit){
   ivl_signal_t lsig,rsig;
   unsigned llit,rlit;
   ivl_expr_t rexpr;
@@ -304,9 +304,9 @@ unsigned process_assignments(ivl_statement_t net){
   switch ( ivl_expr_type( rexpr )){
     case IVL_EX_SIGNAL:
       rsig = ivl_expr_signal(rexpr);
-      rlit = LIT(rsig);
+      //rlit = LIT(rsig);
       DEBUG0("RHS expression signal %s (@%u)\n",ivl_signal_basename(rsig),rlit);
-      process_signal(rsig);
+      rlit = process_signal(rsig);
       aiger_add_latch(aiger_handle, llit, rlit,ivl_signal_name(lsig));
       return rlit;
 
@@ -331,7 +331,7 @@ unsigned process_statements(ivl_statement_t net){
       //WARNING("Assign Initial Condition statement not supported\tLine: %d\tFile: %s\n",ivl_stmt_lineno(net),ivl_stmt_file(net));
     case IVL_ST_ASSIGN_NB:
       DEBUG0("Non-blocking assign statement\n");
-      return process_assignments(net);
+      return process_assignments(net, 0);
     case IVL_ST_BLOCK:
       DEBUG0("Block of some sort\n");
       break;

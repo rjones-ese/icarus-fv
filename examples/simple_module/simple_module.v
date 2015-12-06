@@ -6,7 +6,7 @@ module simple_module (
   output d
 );
 
-//assign c = ~(a & b);
+assign c = ~(a & b);
 
 //assign d = a & b;
 assign d = a | q;
@@ -14,13 +14,15 @@ assign d = a | q;
 reg q;
 
 always @ ( posedge clk ) begin
-  q <= b;
+
+  q <= ~( a | b & c);
   /*
-  if (c)
+  if (b)
     q <= ~a;
   else
     q <= 0;
   */
+
 
 end
 
