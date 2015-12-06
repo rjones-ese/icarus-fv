@@ -13,6 +13,12 @@ assign d = a | q;
 
 reg q;
 
+wire bad_a = 1;
+
+initial begin
+  $aig_bad(d,"hi");
+end
+
 always @ ( posedge clk ) begin
 
   q <= ~( a | b & c);

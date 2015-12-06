@@ -35,6 +35,7 @@ unsigned process_nexus ( ivl_signal_t parent, ivl_nexus_t nexus );
 unsigned process_lpm   ( ivl_signal_t parent, ivl_lpm_t lpm );
 unsigned process_logic ( ivl_signal_t parent, ivl_net_logic_t log );
 unsigned process_signal( ivl_signal_t sig );
+int process_pli   ( ivl_statement_t net  );
 
 // Global declarations
 char file_path [40];
@@ -288,8 +289,7 @@ unsigned process_signal( ivl_signal_t sig ){
 }
 static int show_process(ivl_process_t net, void * x){
 
-  process_statements(ivl_process_stmt(net));
-  return 0;
+  return process_statements(ivl_process_stmt(net));
 }
 
 unsigned process_assignments(ivl_statement_t net, unsigned lhs_lit){
@@ -345,9 +345,85 @@ unsigned process_statements(ivl_statement_t net){
     case IVL_ST_CONDIT:
       DEBUG0("Conditional statement\n");
       break;
+    case IVL_ST_STASK:
+      process_pli(net);
+      break;
     default:
       WARNING("Unsupported statement \t Line: %d \t File: %s \t (Error: %d)\n",ivl_stmt_lineno(net), ivl_stmt_file(net), ivl_statement_type(net));
   }
+  return 0;
+}
+
+int process_pli ( ivl_statement_t net ){
+  DEBUG0("PLI %s \n",ivl_stmt_name(net));
+  ivl_expr_t predicate_expr, predicate_value_expr, desc_expr;
+  int idx, func_idx;
+  ivl_signal_t predicate, predicate_value;
+  unsigned predicate_lit, predicate_value_lit;
+
+  char * function_description;
+
+  const char * pli_funcs[] = { "$aig_bad", "$aig_constraint", "$aig_justice", "$aig_fairness" };
+  # define AIGBAD  0
+  # define AIGCON  1
+  # define AIGJUS  2
+  # define AIGFAIR 3
+
+  func_idx = -1;
+  for ( idx = 0; idx < 4 && func_idx < 0; idx++ ){
+    if(!strcmp(ivl_stmt_name(net),pli_funcs[idx]))
+        func_idx = idx;
+  }
+  if ( func_idx < 0 ){
+    ERROR("PLI Not a valid function name \"%s\"\n",ivl_stmt_name(net));
+    return -1;
+  }
+
+  //Check for correct number of arguments
+  if ( ivl_stmt_parm_count(net) != 2 ){
+    ERROR("PLI %s Expects two arguments: predicate (as wire), and description (as string)\n",ivl_stmt_name(net));
+    return -1;
+  }
+
+  predicate_expr = ivl_stmt_parm(net,0);
+  desc_expr = ivl_stmt_parm(net,1);
+  //predicate_value_expr = ivl_stmt_parm(net,1);
+
+  //Check types
+  if ( ivl_expr_type(predicate_expr) != IVL_EX_SIGNAL ){
+    ERROR("PLI %s Expects first argument (predicate) to be wire\n",ivl_stmt_name(net));
+    return -2;
+  }
+
+  if ( ivl_expr_type(desc_expr) != IVL_EX_STRING ){
+    ERROR("PLI %s Expects second argument (description) to be string\n",ivl_stmt_name(net));
+    return -2;
+  }
+
+  //Get Signals From Expressions
+  predicate = ivl_expr_signal(predicate_expr);
+
+  //Propogate signals down (may be redundant)
+  process_signal(predicate);
+
+  //Get literal indexes
+  predicate_lit = LIT(predicate);
+
+  switch ( func_idx ){
+    case AIGBAD:
+      aiger_add_bad( aiger_handle, predicate_lit, ivl_expr_string(desc_expr) );
+      break;
+    case AIGCON:
+      break;
+    case AIGJUS:
+      break;
+    case AIGFAIR:
+      break;
+    default:
+      ERROR("PLI Internal Error: Cannot process function %s\n",ivl_stmt_name(net));
+      return -1;
+  }
+
   return 0;
 }
 
