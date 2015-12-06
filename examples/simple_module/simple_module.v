@@ -13,10 +13,10 @@ assign d = a | q;
 
 reg q;
 
-wire bad_a = 1;
+wire bad_a = a & q;
 
 initial begin
-  $aig_bad(d,"hi");
+  $aig_constraint(0,"hi");
 end
 
 always @ ( posedge clk ) begin

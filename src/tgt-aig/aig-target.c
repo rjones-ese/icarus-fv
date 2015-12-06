@@ -93,11 +93,20 @@ int target_design(ivl_design_t des)
     DEBUG0("Successfully wrote to file\n");
   }
 
+  INFO("Printing lookup table\n");
+  for(idx = 0; idx < aiger_signal_len; idx++ ){
+    ivl_signal_t sig = aiger_signals[idx];
+    if ( NULL != sig && !ivl_signal_local(sig))
+      fprintf(stdout, "%30.30s\t%u\n", ivl_signal_name(sig),aiger_var2lit(idx+1));
+  }
+
   //Free Aiger Lib
   aiger_free(aiger_handle);
 
   //Free Scope
   free(_scopes);
+  if ( ret_val < 0 )
+    return ret_val;
 
   return ret_val;
 }
@@ -271,21 +280,22 @@ unsigned process_signal( ivl_signal_t sig ){
   if ( 0 == sig )
     return 0;
 
-  DEBUG0("Processing signal %s (level %d)\n",ivl_signal_basename(sig),nexus_counter);
+  unsigned lit = LIT(sig);
+  unsigned ret_lit;
+
+  DEBUG0("Processing signal %s (@%u)\n",ivl_signal_basename(sig),lit);
   if ( IVL_SIGNAL_IS_INPUT( sig ) ){
-      unsigned lit = LIT(sig);
-      //aiger_add_input(aiger_handle,lit,ivl_signal_basename(sig));
       INFO("Input signal %s (@%u)\n",ivl_signal_name(sig),lit);
       return lit;
   }
 
   if ( ivl_signal_type(sig) == IVL_SIT_REG ){
-    unsigned lit = LIT(sig);
     DEBUG0("Reg @ %u\n",lit);
     return lit;
   }
 
-  return process_nexus(sig, ivl_signal_nex(sig,0));
+  ret_lit = process_nexus(sig, ivl_signal_nex(sig,0));
+  return ret_lit;
 }
 static int show_process(ivl_process_t net, void * x){
 
@@ -414,6 +424,7 @@ int process_pli ( ivl_statement_t net ){
       aiger_add_bad( aiger_handle, predicate_lit, ivl_expr_string(desc_expr) );
       break;
     case AIGCON:
+      aiger_add_constraint( aiger_handle, predicate_lit, ivl_expr_string(desc_expr) );
       break;
     case AIGJUS:
       break;

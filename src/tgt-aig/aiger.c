@@ -29,6 +29,8 @@ IN THE SOFTWARE.
 #include <ctype.h>
 #include <unistd.h>
 
+#include <stdio.h>
+
 /*------------------------------------------------------------------------*/
 
 // TODO move this to seperate file and sync it with git hash
@@ -892,12 +894,19 @@ aiger_check (aiger * public)
   assert (!aiger_error (public));
 
   aiger_check_next_defined (private);
+  //printf("AIGER : %s\n",private->error);
   aiger_check_outputs_defined (private);
+  //printf("AIGER : %s\n",private->error);
   aiger_check_bad_defined (private);
+  //printf("AIGER : %s\n",private->error);
   aiger_check_constraints_defined (private);
+  //printf("AIGER : %s\n",private->error);
   aiger_check_justice_defined (private);
+  //printf("AIGER : %s\n",private->error);
   aiger_check_fairness_defined (private);
+  //printf("AIGER : %s\n",private->error);
   aiger_check_right_hand_sides_defined (private);
+  //printf("AIGER : %s\n",private->error);
   aiger_check_for_cycles (private);
 
   return private->error;
@@ -1683,7 +1692,7 @@ aiger_write_binary (aiger * public, void *state, aiger_put put)
   aiger_and *and;
   unsigned lhs, i;
 
-  assert (!aiger_check (public));
+  //assert (!aiger_check (public));
 
   aiger_reencode (public);
 
