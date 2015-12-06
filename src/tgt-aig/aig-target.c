@@ -323,7 +323,6 @@ unsigned process_assignments(ivl_statement_t net, unsigned condition){
       WARNING("Unsupported RHS expression %d\n", ivl_expr_type( ivl_stmt_rval(net) ));
   }
 
-
   return 0;
 }
 unsigned process_statements(ivl_statement_t net, unsigned condition){
@@ -438,6 +437,7 @@ int process_pli ( ivl_statement_t net ){
     case AIGJUS:
       break;
     case AIGFAIR:
+      aiger_add_fairness( aiger_handle, predicate_lit, ivl_expr_string(desc_expr) );
       break;
     default:
       ERROR("PLI Internal Error: Cannot process function %s\n",ivl_stmt_name(net));
