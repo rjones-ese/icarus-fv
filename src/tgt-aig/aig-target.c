@@ -28,10 +28,10 @@ int process_scope(ivl_scope_t scope, void * cd);
 static int show_process(ivl_process_t net, void * x);
 int show_constants(ivl_design_t des);
 static int process_statements(ivl_statement_t net, int level);
-int process_nexus ( ivl_signal_t parent, ivl_nexus_t nexus );
-int process_lpm   ( ivl_signal_t parent, ivl_lpm_t lpm );
-int process_logic ( ivl_signal_t parent, ivl_net_logic_t log );
-int process_signal( ivl_signal_t sig );
+unsigned process_nexus ( ivl_signal_t parent, ivl_nexus_t nexus );
+unsigned process_lpm   ( ivl_signal_t parent, ivl_lpm_t lpm );
+unsigned process_logic ( ivl_signal_t parent, ivl_net_logic_t log );
+unsigned process_signal( ivl_signal_t sig );
 
 // Global declarations
 char file_path [40];
@@ -167,34 +167,24 @@ int process_scope(ivl_scope_t scope,void * cd){
   return 0;
 }
 
+#ifdef LOG_LEVEL_DEBUG0
 unsigned nexus_counter = 0;
-int process_nexus( ivl_signal_t parent, ivl_nexus_t nexus ){
+#endif
+
+unsigned process_nexus( ivl_signal_t parent, ivl_nexus_t nexus ){
 
   if ( ivl_nexus_get_private( nexus ) ){
-    //DEBUG0("Nexus already processed (%s)\n",ivl_nexus_name(nexus));
     return 0;
   }
   DEBUG0("Nexus level %d\n",nexus_counter++);
-  //DEBUG0("Processing Nexus (%s)\n", ivl_nexus_name(nexus));
+
   ivl_nexus_set_private( nexus,(void * ) 1);
 
-  int idx, ptrs;
+  int idx;
   ivl_nexus_ptr_t nexus_ptr;
-  ivl_signal_t nex_signal;
-  ivl_net_logic_t nex_logic;
-  ivl_switch_t nex_switch;
-  ivl_branch_t nex_branch;
-  ivl_lpm_t nex_lpm;
 
-  ptrs = ivl_nexus_ptrs(nexus);
-  DEBUG0("Num Nexus of Pointers %d\n",ptrs);
-
-  for ( idx = 0; idx < ptrs; idx++ ){
+  for ( idx = 0; idx < ivl_nexus_ptrs(nexus); idx++ ){
     nexus_ptr = ivl_nexus_ptr(nexus,idx);
-
-    nex_switch = ivl_nexus_ptr_switch(nexus_ptr);
-    nex_branch = ivl_nexus_ptr_branch(nexus_ptr);
-    nex_lpm    = ivl_nexus_ptr_lpm(nexus_ptr);
 
     /*
     DEBUG0("(%d) Ptr %d %d\n",
@@ -204,26 +194,31 @@ int process_nexus( ivl_signal_t parent, ivl_nexus_t nexus ){
     );
     */
 
+    ivl_switch_t nex_switch = ivl_nexus_ptr_switch(nexus_ptr);
+    ivl_branch_t nex_branch = ivl_nexus_ptr_branch(nexus_ptr);
+
     if( 0 != nex_switch )
-      DEBUG0("Ptr Switch %s\n",ivl_switch_basename(nex_switch));
+      WARNING("Switch unimplimented %s [file %s line number %d] \n",ivl_switch_basename(nex_switch),ivl_switch_file(nex_switch),ivl_switch_lineno(nex_switch));
     else if( 0 != nex_branch )
-      DEBUG0("Ptr Branch\n");
+      WARNING("Branch unimplimented \n");
 
-    //process_pointer
-    //if ( 0 != ivl_nexu
-
-    process_signal( ivl_nexus_ptr_sig (nexus_ptr) );
-    process_logic ( parent, ivl_nexus_ptr_log (nexus_ptr) );
-    process_lpm   ( parent, ivl_nexus_ptr_lpm (nexus_ptr) );
+#define RETURN_IF_VALID(x) if (x > 0) { ivl_nexus_set_private( nexus,(void * ) 0); return x; }
+    unsigned sig_lit =process_signal( ivl_nexus_ptr_sig (nexus_ptr) );
+    RETURN_IF_VALID(sig_lit);
+    unsigned log_lit =process_logic ( parent, ivl_nexus_ptr_log (nexus_ptr) );
+    RETURN_IF_VALID(log_lit);
+    unsigned lpm_lit =process_lpm   ( parent, ivl_nexus_ptr_lpm (nexus_ptr) );
+    RETURN_IF_VALID(lpm_lit);
+#undef RETURN_IF_VALID
 
   }
-  //int num_nexus_ptrs = ivl_nexus_ptrs(nexus);
-  //DEBUG0("Nexus PTRS %d\n",num_nexus_ptrs);
 
+  //Clear flag that nexus has been traveled to
+  ivl_nexus_set_private( nexus,(void * ) 0);
   return 0;
 }
 
-int process_lpm( ivl_signal_t parent, ivl_lpm_t lpm ){
+unsigned process_lpm( ivl_signal_t parent, ivl_lpm_t lpm ){
   if ( 0 == lpm )
     return 0;
 
@@ -236,7 +231,7 @@ int process_lpm( ivl_signal_t parent, ivl_lpm_t lpm ){
   */
   return 0;
 }
-int process_logic(ivl_signal_t parent, ivl_net_logic_t log ){
+unsigned process_logic(ivl_signal_t parent, ivl_net_logic_t log ){
   int idx;
   if ( 0 == log )
     return 0;
@@ -247,7 +242,11 @@ int process_logic(ivl_signal_t parent, ivl_net_logic_t log ){
     case IVL_LO_BUFIF0 :
     case IVL_LO_BUFIF1 :
     case IVL_LO_BUFZ   :
-      DEBUG0("Buffer (%d)  %s \n", ivl_logic_width(log), ivl_logic_basename(log));
+      DEBUG0("Buffer (%d)  %s \n", ivl_logic_pins(log), ivl_logic_basename(log));
+      unsigned lit = LIT(parent);
+      unsigned ret_lit = process_nexus( parent, ivl_logic_pin(log,1));
+      DEBUG0("Buffer (@%u) getting literal %u\n",lit,ret_lit);
+      aiger_add_and( aiger_handle, lit, ret_lit , lit );
       break;
     case IVL_LO_NOT    :
       DEBUG0("Not element\n");
@@ -279,22 +278,25 @@ int process_logic(ivl_signal_t parent, ivl_net_logic_t log ){
     default:
       WARNING("Unsupported logic element:\t%s\n",ivl_logic_basename(log));
   }
+  /*
   for ( idx = 0; idx < ivl_logic_pins(log); idx++ ){
     //DEBUG0("(%d) pin %d\n",nexus_counter,idx);
     process_nexus( parent, ivl_logic_pin(log,idx));
   }
+  */
   return 0;
 }
 
-int process_signal( ivl_signal_t sig ){
+unsigned process_signal( ivl_signal_t sig ){
   if ( 0 == sig )
     return 0;
 
   DEBUG0("Processing signal %s (level %d)\n",ivl_signal_basename(sig),nexus_counter);
   if ( IVL_SIGNAL_IS_INPUT( sig ) ){
-      aiger_add_input(aiger_handle,LIT(sig),ivl_signal_basename(sig));
-      INFO("Input signal (%s)\n",ivl_signal_name(sig));
-      return 0;
+      unsigned lit = LIT(sig);
+      aiger_add_input(aiger_handle,lit,ivl_signal_basename(sig));
+      INFO("Input signal %s (literal index %u)\n",ivl_signal_name(sig),lit);
+      return lit;
   }
 
   int idx;
