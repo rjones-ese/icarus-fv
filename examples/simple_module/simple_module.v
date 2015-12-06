@@ -2,13 +2,15 @@ module simple_module (
   input clk,
   input a,
   input b,
+  input whoa,
   output c,
   output d
 );
 
-assign c = ~(a & b);
+assign c = ~(a & b & whoa);
+
 //assign d = a & b;
-assign d = ~a;
+assign d = (c | a);
 
 /*
 reg q;
