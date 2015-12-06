@@ -30,13 +30,8 @@ int show_constants(ivl_design_t des);
 static int process_statements(ivl_statement_t net, int level);
 int process_nexus( ivl_nexus_t nexus );
 int process_lpm( ivl_lpm_t lpm );
-// Aggregates outputs of top level scope
-//    - Requires: an ( already allocated ) array of signals and
-//      the maximum value that the array can hold.
-//    - Returns: -1 if number of outputs exceed array or the
-//      number of outputs in the scope
-int aggregate_outputs ( ivl_signal_t * output, unsigned max );
 int process_logic( ivl_net_logic_t log );
+int process_signal( ivl_signal_t sig );
 
 // Global declarations
 char file_path [40];
@@ -69,7 +64,6 @@ unsigned     lit_add      ( const char * name );
 unsigned     lit_get_index( const char * name );
 const char * lit_get_name ( unsigned idx );
 void         lit_iterate  ( void (* lit_iterate_cb ) ( unsigned idx, ivl_signal_t * sig ));
-int process_nexus( ivl_nexus_t nexus );
 
 #define MAX_LIT 100
 
@@ -124,7 +118,7 @@ int target_design(ivl_design_t des)
   }
 
   // Parse Design Processes
-  //ivl_design_process(des,show_process,0);
+  ivl_design_process(des,show_process,0);
 
   show_constants(des);
 
@@ -171,12 +165,15 @@ int process_scope(ivl_scope_t scope,void * cd){
   return 0;
 }
 
+unsigned nexus_counter = 0;
 int process_nexus( ivl_nexus_t nexus ){
+
   if ( ivl_nexus_get_private( nexus ) ){
-    DEBUG0("Nexus already processed (%s)\n",ivl_nexus_name(nexus));
+    //DEBUG0("Nexus already processed (%s)\n",ivl_nexus_name(nexus));
     return 0;
   }
-  DEBUG0("Processing Nexus (%s)\n", ivl_nexus_name(nexus));
+  DEBUG0("Nexus level %d\n",nexus_counter++);
+  //DEBUG0("Processing Nexus (%s)\n", ivl_nexus_name(nexus));
   ivl_nexus_set_private( nexus,(void * ) 1);
 
   int idx, ptrs;
@@ -193,28 +190,27 @@ int process_nexus( ivl_nexus_t nexus ){
   for ( idx = 0; idx < ptrs; idx++ ){
     nexus_ptr = ivl_nexus_ptr(nexus,idx);
 
-    nex_signal = ivl_nexus_ptr_sig(nexus_ptr);
-    nex_logic  = ivl_nexus_ptr_log(nexus_ptr);
     nex_switch = ivl_nexus_ptr_switch(nexus_ptr);
     nex_branch = ivl_nexus_ptr_branch(nexus_ptr);
     nex_lpm    = ivl_nexus_ptr_lpm(nexus_ptr);
 
-    /*
-    DEBUG0("Ptr %d %d\n",
+    DEBUG0("(%d) Ptr %d %d\n",
+    nexus_counter,
     ivl_nexus_ptr_pin( nexus_ptr ),
     ivl_nexus_ptr_con( nexus_ptr )
     );
-    */
 
-    if( 0 != nex_signal ) //Pointer is a signal object
-      DEBUG0("Ptr Signal %s\n", ivl_signal_name(nex_signal));
-    else if( 0 != nex_switch )
+    if( 0 != nex_switch )
       DEBUG0("Ptr Switch %s\n",ivl_switch_basename(nex_switch));
     else if( 0 != nex_branch )
       DEBUG0("Ptr Branch\n");
 
-    process_logic( ivl_nexus_ptr_log(nexus_ptr) );
-    process_lpm( ivl_nexus_ptr_lpm(nexus_ptr) );
+    //process_pointer
+    //if ( 0 != ivl_nexu
+
+    process_signal( ivl_nexus_ptr_sig (nexus_ptr) );
+    process_logic ( ivl_nexus_ptr_log (nexus_ptr) );
+    process_lpm   ( ivl_nexus_ptr_lpm (nexus_ptr) );
 
   }
   int num_nexus_ptrs = ivl_nexus_ptrs(nexus);
@@ -242,25 +238,32 @@ int process_logic( ivl_net_logic_t log ){
     return 0;
 
   switch ( ivl_logic_type(log)){
+
+    // Implemented logical functions
     case IVL_LO_BUFIF0 :
     case IVL_LO_BUFIF1 :
     case IVL_LO_BUFZ   :
-      DEBUG0("Buffer %s\n",ivl_logic_basename(log));
-      for ( idx = 0; idx < ivl_logic_pins(log); idx++ ){
-        process_nexus(ivl_logic_pin(log,idx));
-      }
+      DEBUG0("Buffer (%d)  %s \n", ivl_logic_width(log), ivl_logic_basename(log));
       break;
-    case IVL_LO_NONE   :
+    case IVL_LO_NOT    :
+      DEBUG0("Not element\n");
+      break;
     case IVL_LO_AND    :
+      DEBUG0("And element\n");
+      break;
+    case IVL_LO_OR     :
+      DEBUG0("Or element\n");
+      break;
+
+    // Unimplemented logical functions
+    case IVL_LO_NONE   :
     case IVL_LO_BUF    :
     case IVL_LO_CMOS   :
     case IVL_LO_NAND   :
     case IVL_LO_NMOS   :
     case IVL_LO_NOR    :
-    case IVL_LO_NOT    :
     case IVL_LO_NOTIF0 :
     case IVL_LO_NOTIF1 :
-    case IVL_LO_OR     :
     case IVL_LO_PULLDOWN:
     case IVL_LO_PULLUP :
     case IVL_LO_RCMOS  :
@@ -272,9 +275,28 @@ int process_logic( ivl_net_logic_t log ){
     default:
       WARNING("Unsupported logic element:\t%s\n",ivl_logic_basename(log));
   }
+  for ( idx = 0; idx < ivl_logic_pins(log); idx++ ){
+    DEBUG0("(%d) pin %d\n",nexus_counter,idx);
+    process_nexus(ivl_logic_pin(log,idx));
+  }
   return 0;
 }
 
+int process_signal( ivl_signal_t sig ){
+  if ( 0 == sig )
+    return 0;
+
+  DEBUG0("Processing signal %s (level %d)\n",ivl_signal_basename(sig),nexus_counter);
+  if ( IVL_SIGNAL_IS_INPUT( sig ) ){
+      INFO("Input signal (%s)\n",ivl_signal_name(sig));
+      return 0;
+  }
+
+  int idx;
+
+  process_nexus(ivl_signal_nex(sig,0));
+  return 0;
+}
 static int show_process(ivl_process_t net, void * x){
 
   process_statements(ivl_process_stmt(net),0);
