@@ -18,7 +18,7 @@ initial begin
 end
 
 always @ ( posedge clk ) begin
-    q <= (a==b)? b : ~a;
+    q <= (a!=b)? b : ~a;
     /*
   if ( a ) begin
     if (d )

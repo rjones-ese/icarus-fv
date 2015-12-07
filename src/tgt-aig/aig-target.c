@@ -257,6 +257,19 @@ unsigned process_logic(ivl_signal_t parent, ivl_net_logic_t log ){
 
       DEBUG0("XOR (@%u) getting literals %u %u\n",lit,ret_lit,ret_lit2);
       return aiger_not(false_lit);
+    case IVL_LO_XNOR   :
+      false_lit = FALSE_LIT;
+      false_lit2 = FALSE_LIT;
+      false_lit3 = FALSE_LIT;
+      ret_lit =  process_nexus( parent, ivl_logic_pin(log,1));
+      ret_lit2 = process_nexus( parent, ivl_logic_pin(log,2));
+
+      aiger_add_and( aiger_handle, false_lit2, ret_lit, ret_lit2 );
+      aiger_add_and( aiger_handle, false_lit3, aiger_not(ret_lit), aiger_not(ret_lit2) );
+      aiger_add_and( aiger_handle, false_lit, aiger_not(false_lit2),aiger_not(false_lit3));
+
+      DEBUG0("XOR (@%u) getting literals %u %u\n",lit,ret_lit,ret_lit2);
+      return aiger_not(false_lit);
 
     // Unimplemented logical functions
     case IVL_LO_NONE   :
@@ -272,7 +285,6 @@ unsigned process_logic(ivl_signal_t parent, ivl_net_logic_t log ){
     case IVL_LO_RNMOS  :
     case IVL_LO_RPMOS  :
     case IVL_LO_PMOS   :
-    case IVL_LO_XNOR   :
     default:
       WARNING("Unsupported logic element:\t%s (%d) \n",ivl_logic_basename(log), ivl_logic_type(log));
   }
