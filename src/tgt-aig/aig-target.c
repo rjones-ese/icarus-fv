@@ -25,7 +25,7 @@
 
 /* --  Method Declarations -- */
 int process_scope(ivl_scope_t scope, void * cd);
-static int show_process(ivl_process_t net, void * x);
+static int process_statements_cb(ivl_process_t net, void * x);
 unsigned process_statements(ivl_statement_t net, unsigned condition);
 unsigned process_assignments(ivl_statement_t net, unsigned condition);
 unsigned process_nexus ( ivl_signal_t parent, ivl_nexus_t nexus );
@@ -78,7 +78,7 @@ int target_design(ivl_design_t des)
   }
 
   // Parse Design Processes
-  ivl_design_process(des,show_process,0);
+  ivl_design_process(des,process_statements_cb,0);
 
   //Write file
   aiger_add_comment(aiger_handle,IFV_AIGER_COMMENT);
@@ -145,7 +145,10 @@ int process_scope(ivl_scope_t scope,void * cd){
 unsigned process_nexus( ivl_signal_t parent, ivl_nexus_t nexus ){
 
   // Lock other processes out of this node once it is solved
-  if ( ivl_nexus_get_private(nexus)){ return 0; }
+  if (ivl_nexus_get_private(nexus) == (void *)1) return 0;
+
+  unsigned * ind = ivl_nexus_get_private(nexus);
+  if (ind){ return *ind; }
   ivl_nexus_set_private( nexus,(void * ) 1);
 
   // Iterate through nexus pointers to try to find driving element
@@ -163,7 +166,7 @@ unsigned process_nexus( ivl_signal_t parent, ivl_nexus_t nexus ){
     else if( 0 != nex_branch )
       WARNING("Branch unimplimented \n");
 
-#define RETURN_IF_VALID(x) if (x > 0) return x
+#define RETURN_IF_VALID(x) if (x > 0) {unsigned * max_lit = malloc(sizeof(unsigned)); *max_lit = x;ivl_nexus_set_private(nexus, (void *) max_lit); return x;}
     unsigned con_lit =process_constant( parent, ivl_nexus_ptr_con(nexus_ptr));
     RETURN_IF_VALID(con_lit);
     unsigned sig_lit =process_signal( ivl_nexus_ptr_sig (nexus_ptr) );
@@ -182,7 +185,14 @@ unsigned process_nexus( ivl_signal_t parent, ivl_nexus_t nexus ){
 unsigned process_lpm( ivl_signal_t parent, ivl_lpm_t lpm ){
   if ( 0 == lpm )
     return 0;
-  ERROR("LPM Devices are not enabled\n");
+  if (IVL_LPM_MUX == ivl_lpm_type(lpm)){
+    unsigned condition, data, mux_if, mux_else;
+
+    condition = process_nexus( parent, ivl_lpm_select(lpm));
+    DEBUG0("MUX (cond @%u)\n",condition);
+    return 0;
+  }
+  ERROR("LPM Devices are not enabled (requesting %d)\n",ivl_lpm_type(lpm));
   return 0;
 }
 
@@ -286,7 +296,8 @@ unsigned process_signal( ivl_signal_t sig ){
   ret_lit = process_nexus(sig, ivl_signal_nex(sig,0));
   return ret_lit;
 }
-static int show_process(ivl_process_t net, void * x){
+
+static int process_statements_cb(ivl_process_t net, void * x){
   return process_statements(ivl_process_stmt(net),0);
 }
 unsigned process_assignments(ivl_statement_t net, unsigned condition){
@@ -322,9 +333,9 @@ unsigned process_assignments(ivl_statement_t net, unsigned condition){
     default:
       WARNING("Unsupported RHS expression %d\n", ivl_expr_type( ivl_stmt_rval(net) ));
   }
-
   return 0;
 }
+
 unsigned process_statements(ivl_statement_t net, unsigned condition){
 
   ivl_expr_t expr;

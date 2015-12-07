@@ -2,6 +2,7 @@ module simple_module (
   input clk,
   input a,
   input b,
+  input r,
   output c,
   output d
 );
@@ -18,15 +19,15 @@ initial begin
 end
 
 always @ ( posedge clk ) begin
-
+    q <= (a)? b : ~a;
+    /*
   if ( a ) begin
     if (d )
       q <= a;//1'b1;//~( a | b & c);
-    /*
     else
       q <= a & b;
-    */
   end
+    */
 end
 
 endmodule
