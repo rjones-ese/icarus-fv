@@ -9,8 +9,7 @@ module simple_module (
 
 assign c = ~(a & b);
 
-//assign d = a & b;
-assign d = 0;
+assign d = a & ~b;
 
 reg q;
 
@@ -19,7 +18,7 @@ initial begin
 end
 
 always @ ( posedge clk ) begin
-    q <= (a)? b : ~a;
+    q <= (a==b)? b : ~a;
     /*
   if ( a ) begin
     if (d )

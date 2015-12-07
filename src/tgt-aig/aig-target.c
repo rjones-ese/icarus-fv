@@ -186,11 +186,20 @@ unsigned process_lpm( ivl_signal_t parent, ivl_lpm_t lpm ){
   if ( 0 == lpm )
     return 0;
   if (IVL_LPM_MUX == ivl_lpm_type(lpm)){
-    unsigned condition, data, mux_if, mux_else;
+    unsigned condition, output, mux_if, mux_else, false_lit_if, false_lit_else;
 
     condition = process_nexus( parent, ivl_lpm_select(lpm));
-    DEBUG0("MUX (cond @%u)\n",condition);
-    return 0;
+    output = FALSE_LIT;
+    mux_if = process_nexus( parent, ivl_lpm_data(lpm,0) );
+    mux_else = process_nexus( parent, ivl_lpm_data(lpm,1) );
+    false_lit_if = FALSE_LIT;
+    false_lit_else = FALSE_LIT;
+    aiger_add_and(aiger_handle, false_lit_if, condition, mux_if);
+    aiger_add_and(aiger_handle, false_lit_else, aiger_not(condition), mux_else);
+    aiger_add_and(aiger_handle, output, aiger_not(false_lit_if),aiger_not(false_lit_else));
+    output = aiger_not(output);
+    DEBUG0("MUX (output @%u cond @%u if @%u else @%u)\n",output,condition,mux_if,mux_else);
+    return output;
   }
   ERROR("LPM Devices are not enabled (requesting %d)\n",ivl_lpm_type(lpm));
   return 0;
@@ -265,7 +274,7 @@ unsigned process_logic(ivl_signal_t parent, ivl_net_logic_t log ){
     case IVL_LO_PMOS   :
     case IVL_LO_XNOR   :
     default:
-      WARNING("Unsupported logic element:\t%s\n",ivl_logic_basename(log));
+      WARNING("Unsupported logic element:\t%s (%d) \n",ivl_logic_basename(log), ivl_logic_type(log));
   }
   return lit;
 }
