@@ -1,5 +1,3 @@
-.PHONY:run
-
 BUILD_DIR = build
 SRC_DIR = src
 
@@ -16,7 +14,4 @@ all: aig.tgt
 aig.tgt:
 	mkdir -p $(BUILD_DIR)
 	gcc -o $(BUILD_DIR)/aig.tgt -fpic -shared $(AIG_TGT_SRC)
-
-run: aig.tgt
-	iverilog -o test.aig -t aig examples/simple_module/simple_module.v
-
+	@cp $(AIG_TGT_CONF) $(BUILD_DIR)
