@@ -29,6 +29,7 @@ See `example` directory for usage examples.
 
 ## Limitations
 This target currently has some notable limitations.
+
 1. Vectors/Array Types are not supported. Vectors should be converted to
    single signals before compiling.
 2. If Then Else constructs have a serious bug. Avoid by using ternary
