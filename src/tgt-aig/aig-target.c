@@ -94,7 +94,7 @@ int target_design(ivl_design_t des)
   for(idx = 0; idx < aiger_signal_len; idx++ ){
     ivl_signal_t sig = aiger_signals[idx];
     if ( NULL != sig && !ivl_signal_local(sig))
-      fprintf(stdout, "%30.30s\t%u\n", ivl_signal_name(sig),aiger_var2lit(idx+1));
+      fprintf(stdout, "%30.30s\t%u\n", ivl_signal_basename(sig),aiger_var2lit(idx+1));
   }
 
   //Free Aiger Lib
@@ -120,7 +120,7 @@ int process_scope(ivl_scope_t scope,void * cd){
     ivl_signal_t sig = ivl_scope_sig(scope,idx);
     if ( IVL_SIGNAL_IS_OUTPUT( sig ) ){
         output_lit = LIT(sig);
-        aiger_add_output(aiger_handle,output_lit,ivl_signal_name(sig));
+        aiger_add_output(aiger_handle,output_lit,ivl_signal_basename(sig));
         INFO("Output signal (%s)\n",ivl_signal_name(sig));
         nexus = ivl_signal_nex(sig,0);
         ret_lit = process_nexus(sig,nexus);
@@ -133,7 +133,7 @@ int process_scope(ivl_scope_t scope,void * cd){
     ivl_signal_t sig = ivl_scope_sig(scope,idx);
     if ( IVL_SIGNAL_IS_INPUT( sig ) ){
         input_lit = LIT(sig);
-        aiger_add_input(aiger_handle,input_lit,ivl_signal_name(sig));
+        aiger_add_input(aiger_handle,input_lit,ivl_signal_basename(sig));
         INFO("Input signal %s (@%u)\n",ivl_signal_name(sig),input_lit);
     }
   }
@@ -199,7 +199,7 @@ unsigned process_lpm( ivl_signal_t parent, ivl_lpm_t lpm ){
     aiger_add_and(aiger_handle, false_lit_else, aiger_not(condition), mux_else);
     aiger_add_and(aiger_handle, output, aiger_not(false_lit_if),aiger_not(false_lit_else));
     output = aiger_not(output);
-    DEBUG0("MUX (output @%u cond @%u if @%u else @%u)\n",output,condition,mux_if,mux_else);
+    DEBUG0("MUX (output @%u if @%u then @%u else @%u)\n",output,condition,mux_if,mux_else);
     return output;
   }
   if (IVL_LPM_CMP_EEQ == lpm_type || IVL_LPM_CMP_EQ == lpm_type){
@@ -211,6 +211,10 @@ unsigned process_lpm( ivl_signal_t parent, ivl_lpm_t lpm ){
 
     aiger_add_and(aiger_handle, output, input1, input2);
     return output;
+  }
+  if (IVL_LPM_CONCAT == lpm_type){
+    WARNING("Concatenation requested size %d\n",ivl_lpm_size(lpm));
+    return process_nexus( parent, ivl_lpm_data(lpm,0) );
   }
   ERROR("LPM Devices are not enabled (requesting %d)\n",ivl_lpm_type(lpm));
   return 0;
@@ -245,7 +249,7 @@ unsigned process_logic(ivl_signal_t parent, ivl_net_logic_t log ){
       false_lit = FALSE_LIT;
       ret_lit = process_nexus( parent, ivl_logic_pin(log,1));
       ret_lit2 = process_nexus( parent, ivl_logic_pin(log,2));
-      DEBUG0("AND (@%u) getting literals %u %u\n",lit,ret_lit,ret_lit2);
+      DEBUG0("AND (@%u) getting literals %u %u\n",false_lit,ret_lit,ret_lit2);
       aiger_add_and(aiger_handle, false_lit, ret_lit, ret_lit2);
       return false_lit;
     case IVL_LO_OR     :
@@ -266,7 +270,7 @@ unsigned process_logic(ivl_signal_t parent, ivl_net_logic_t log ){
       aiger_add_and( aiger_handle, false_lit3, aiger_not(ret_lit), ret_lit2 );
       aiger_add_and( aiger_handle, false_lit, aiger_not(false_lit2),aiger_not(false_lit3));
 
-      DEBUG0("XOR (@%u) getting literals %u %u\n",lit,ret_lit,ret_lit2);
+      DEBUG0("XOR (@%u) getting literals %u %u\n",false_lit,ret_lit,ret_lit2);
       return aiger_not(false_lit);
     case IVL_LO_XNOR   :
       false_lit = FALSE_LIT;
@@ -350,9 +354,9 @@ unsigned process_assignments(ivl_statement_t net, unsigned condition){
       if (condition){
         unsigned false_lit = FALSE_LIT;
         aiger_add_and( aiger_handle, false_lit, rlit, condition);
-        aiger_add_latch(aiger_handle, llit, false_lit, ivl_signal_name(lsig));
+        aiger_add_latch(aiger_handle, llit, false_lit, ivl_signal_basename(lsig));
       }else{
-        aiger_add_latch(aiger_handle, llit, rlit,ivl_signal_name(lsig));
+        aiger_add_latch(aiger_handle, llit, rlit,ivl_signal_basename(lsig));
       }
       return rlit;
 
@@ -386,15 +390,16 @@ unsigned process_statements(ivl_statement_t net, unsigned condition){
     case IVL_ST_BLOCK:
       DEBUG0("Block (count %u)\n",ivl_stmt_block_count(net));
       for(idx = 0; idx < ivl_stmt_block_count(net); idx++){
+        DEBUG0("Processing block %d\n",idx);
         process_statements(ivl_stmt_block_stmt(net,idx),0);
       }
       break;
     case IVL_ST_WAIT:
-      DEBUG0("Probably an @ process \n");
+      DEBUG0("An @ process \n");
       return process_statements(ivl_stmt_sub_stmt(net),0);
       break;
     case IVL_ST_CASE:
-      DEBUG0("Case statement\n");
+      ERROR("Case statement not supported\n");
       break;
     case IVL_ST_CONDIT:
       DEBUG0("Conditional statement\n");
@@ -414,7 +419,7 @@ unsigned process_statements(ivl_statement_t net, unsigned condition){
       process_pli(net);
       break;
     default:
-      WARNING("Unsupported statement \t Line: %d \t File: %s \t (Error: %d)\n",ivl_stmt_lineno(net), ivl_stmt_file(net), ivl_statement_type(net));
+      ERROR("Unsupported statement \t Line: %d \t File: %s \t (Error: %d)\n",ivl_stmt_lineno(net), ivl_stmt_file(net), ivl_statement_type(net));
   }
   return 0;
 }
@@ -470,6 +475,7 @@ int process_pli ( ivl_statement_t net ){
 
   //Propogate signals down
   predicate_lit = process_signal(predicate);
+  DEBUG0("PLI adding predicate literal %s (@%u)\n",ivl_signal_basename(predicate), predicate_lit);
 
   switch ( func_idx ){
     case AIGBAD:

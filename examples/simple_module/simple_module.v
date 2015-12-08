@@ -10,19 +10,14 @@ module simple_module (
   output d
 );
 
+reg q;
 assign d = q;
 
-wire bad = ~(q==b);
-
-wire my_con = (a);
-
-
-reg q;
+wire bad = ~(a&(d==b) | ~a&(d==c));
 
 initial begin
-  //AG(bad)
-  $aig_bad(bad,"hi");
-  $aig_constraint(my_con,"oh");
+  //AG(~bad)
+  $aig_bad(bad,"Bad Condition");
 end
 
 always @ ( posedge clk ) begin
