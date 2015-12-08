@@ -7,13 +7,21 @@ Aiger Formal Verification Target and PLI for Icarus Verilog
 ## Installation
 1. run `make` from main directory
 2. Move entire contents of `build` directory into the IVL directory.
-   For a 64-bit Debian system the path is `/usr/lib/x86_64-linux-gnu/ivl/`
+   For a 64-bit Debian system the path is 
+
+```
+/usr/lib/x86_64-linux-gnu/ivl/
+```
 
 ## Using the Aiger target
 Build a Verilog design using the aiger target by running
-`iverilog -o aiger_file.aig -t aig my_verilog_src.v'
-where `aiger_file.aig` is the targetted AIGER output file
-and `my_verilog_src.v` is the Verilog source to be compiled.
+
+```
+iverilog -o aiger_file.aig -t aig my_verilog_src.v
+```
+
+where `aiger_file.aig` is the targetted AIGER output file and 
+`my_verilog_src.v` is the Verilog source to be compiled.
 
 ## Using the Aiger target PLI
 This target supports four PLI's.
