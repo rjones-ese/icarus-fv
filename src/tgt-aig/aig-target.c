@@ -337,9 +337,9 @@ static int process_statements_cb(ivl_process_t net, void * x){
   return process_statements(ivl_process_stmt(net),0);
 }
 unsigned process_assignments(ivl_statement_t net, unsigned condition){
-  ivl_signal_t lsig,rsig;
-  unsigned llit,rlit;
-  ivl_expr_t rexpr;
+  ivl_signal_t lsig,rsig,rsig1,rsig2;
+  unsigned llit,rlit,rlit1,rlit2;
+  ivl_expr_t rexpr, rexpr1, rexpr2;
   lsig = ivl_lval_sig(ivl_stmt_lval(net,0));
   llit = LIT(lsig);
   DEBUG0("LHS Signal %s (@%u)\n",ivl_signal_basename(lsig),llit);
@@ -361,8 +361,17 @@ unsigned process_assignments(ivl_statement_t net, unsigned condition){
       return rlit;
 
     case IVL_EX_BINARY:
-      WARNING("Unsupported RHS expression binary\n");
-      break;
+      DEBUG0("RHS expression binary %c\n",ivl_expr_opcode(rexpr));
+      rexpr1 = ivl_expr_oper1(rexpr);
+      rexpr2 = ivl_expr_oper2(rexpr);
+      rsig1 = ivl_expr_signal(rexpr1);
+      rsig2 = ivl_expr_signal(rexpr2);
+      rlit1 = process_signal(rsig1);
+      rlit2 = process_signal(rsig2);
+      rlit = FALSE_LIT;
+      aiger_add_and(aiger_handle,rlit,rlit1,rlit2);
+      aiger_add_latch(aiger_handle, llit, rlit, ivl_signal_basename(lsig));
+      return rlit;
     case IVL_EX_TERNARY:
       WARNING("Unsupported RHS ternary expression\n");
       break;
