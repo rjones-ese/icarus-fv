@@ -1,32 +1,32 @@
+/*
+*   Simple Module
+*   A trivial example.
+*/
 module simple_module (
   input clk,
   input a,
   input b,
-  input r,
-  output c,
+  input c,
   output d
 );
 
-assign c = ~(a & b);
+assign d = q;
 
-assign d = a & ~b;
+wire bad = ~(q==b);
+
+wire my_con = (a);
+
 
 reg q;
 
 initial begin
-  $aig_bad(d,"hi");
+  //AG(bad)
+  $aig_bad(bad,"hi");
+  $aig_constraint(my_con,"oh");
 end
 
 always @ ( posedge clk ) begin
-    q <= (a!=b)? b : ~a;
-    /*
-  if ( a ) begin
-    if (d )
-      q <= a;//1'b1;//~( a | b & c);
-    else
-      q <= a & b;
-  end
-    */
+    q <= (a)? b : c;
 end
 
 endmodule

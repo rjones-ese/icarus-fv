@@ -185,7 +185,8 @@ unsigned process_nexus( ivl_signal_t parent, ivl_nexus_t nexus ){
 unsigned process_lpm( ivl_signal_t parent, ivl_lpm_t lpm ){
   if ( 0 == lpm )
     return 0;
-  if (IVL_LPM_MUX == ivl_lpm_type(lpm)){
+  ivl_lpm_type_t lpm_type = ivl_lpm_type(lpm);
+  if (IVL_LPM_MUX == lpm_type){
     unsigned condition, output, mux_if, mux_else, false_lit_if, false_lit_else;
 
     condition = process_nexus( parent, ivl_lpm_select(lpm));
@@ -199,6 +200,16 @@ unsigned process_lpm( ivl_signal_t parent, ivl_lpm_t lpm ){
     aiger_add_and(aiger_handle, output, aiger_not(false_lit_if),aiger_not(false_lit_else));
     output = aiger_not(output);
     DEBUG0("MUX (output @%u cond @%u if @%u else @%u)\n",output,condition,mux_if,mux_else);
+    return output;
+  }
+  if (IVL_LPM_CMP_EEQ == lpm_type || IVL_LPM_CMP_EQ == lpm_type){
+    unsigned output, input1, input2;
+
+    output = FALSE_LIT;
+    input1 = process_nexus( parent, ivl_lpm_data(lpm,0) );
+    input2 = process_nexus( parent, ivl_lpm_data(lpm,1) );
+
+    aiger_add_and(aiger_handle, output, input1, input2);
     return output;
   }
   ERROR("LPM Devices are not enabled (requesting %d)\n",ivl_lpm_type(lpm));
@@ -362,6 +373,7 @@ unsigned process_statements(ivl_statement_t net, unsigned condition){
   ivl_expr_t expr;
   unsigned condition_lit, false_lit, false_lit2;
   ivl_statement_t next_net;
+  int idx;
 
   switch(ivl_statement_type(net)) {
     case IVL_ST_ASSIGN:
@@ -372,11 +384,14 @@ unsigned process_statements(ivl_statement_t net, unsigned condition){
       DEBUG0("Non-blocking assign statement\n");
       return process_assignments(net, condition);
     case IVL_ST_BLOCK:
-      DEBUG0("Block of some sort\n");
+      DEBUG0("Block (count %u)\n",ivl_stmt_block_count(net));
+      for(idx = 0; idx < ivl_stmt_block_count(net); idx++){
+        process_statements(ivl_stmt_block_stmt(net,idx),0);
+      }
       break;
     case IVL_ST_WAIT:
       DEBUG0("Probably an @ process \n");
-      process_statements(ivl_stmt_sub_stmt(net),0);
+      return process_statements(ivl_stmt_sub_stmt(net),0);
       break;
     case IVL_ST_CASE:
       DEBUG0("Case statement\n");
@@ -453,11 +468,8 @@ int process_pli ( ivl_statement_t net ){
   //Get Signals From Expressions
   predicate = ivl_expr_signal(predicate_expr);
 
-  //Propogate signals down (may be redundant)
-  process_signal(predicate);
-
-  //Get literal indexes
-  predicate_lit = LIT(predicate);
+  //Propogate signals down
+  predicate_lit = process_signal(predicate);
 
   switch ( func_idx ){
     case AIGBAD:
